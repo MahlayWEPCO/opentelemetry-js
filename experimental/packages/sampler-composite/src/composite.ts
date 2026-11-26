@@ -97,7 +97,7 @@ class CompositeSampler implements Sampler {
 
     return {
       decision,
-      attributes: intent.attributes,
+      ...(sampled ? { attributes: intent.attributes } : {}),
       traceState: newTraceState,
     };
   }

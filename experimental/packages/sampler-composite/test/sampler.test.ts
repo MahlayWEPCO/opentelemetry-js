@@ -13,6 +13,7 @@ import {
   createCompositeSampler,
   createComposableAlwaysOffSampler,
   createComposableAlwaysOnSampler,
+  createComposableAnnotatingSampler,
   createComposableParentThresholdSampler,
   createComposableProbabilitySampler,
 } from '../src';
@@ -27,6 +28,44 @@ import { TraceState } from '@opentelemetry/core';
 describe('ConsistentSampler', () => {
   const traceId = '00112233445566778800000000000000';
   const spanId = '0123456789abcdef';
+
+  it('should omit sampler attributes when the span is not recorded', () => {
+    const sampler = createCompositeSampler(
+      createComposableAnnotatingSampler(createComposableAlwaysOffSampler(), {
+        foo: 'bar',
+      })
+    );
+    const result = sampler.shouldSample(
+      context.active(),
+      traceId,
+      'name',
+      SpanKind.INTERNAL,
+      {},
+      []
+    );
+
+    assert.strictEqual(result.decision, SamplingDecision.NOT_RECORD);
+    assert.ok(!('attributes' in result));
+  });
+
+  it('should preserve sampler attributes when the span is sampled', () => {
+    const sampler = createCompositeSampler(
+      createComposableAnnotatingSampler(createComposableAlwaysOnSampler(), {
+        foo: 'bar',
+      })
+    );
+    const result = sampler.shouldSample(
+      context.active(),
+      traceId,
+      'name',
+      SpanKind.INTERNAL,
+      {},
+      []
+    );
+
+    assert.strictEqual(result.decision, SamplingDecision.RECORD_AND_SAMPLED);
+    assert.deepStrictEqual(result.attributes, { foo: 'bar' });
+  });
 
   [
     {
