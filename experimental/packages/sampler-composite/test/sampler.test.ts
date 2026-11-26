@@ -6,7 +6,13 @@
 import * as assert from 'assert';
 
 import type { SpanContext } from '@opentelemetry/api';
-import { context, SpanKind, TraceFlags, trace } from '@opentelemetry/api';
+import {
+  context,
+  ROOT_CONTEXT,
+  SpanKind,
+  TraceFlags,
+  trace,
+} from '@opentelemetry/api';
 import { SamplingDecision } from '@opentelemetry/sdk-trace';
 
 import {
@@ -65,6 +71,77 @@ describe('ConsistentSampler', () => {
 
     assert.strictEqual(result.decision, SamplingDecision.RECORD_AND_SAMPLED);
     assert.deepStrictEqual(result.attributes, { foo: 'bar' });
+  });
+
+  for (const expected of [
+    SamplingDecision.RECORD_AND_SAMPLED,
+    SamplingDecision.NOT_RECORD,
+  ]) {
+    it(`should update root span tracestate for decision ${expected}`, () => {
+      let calls = 0;
+      const sampler = createCompositeSampler({
+        getSamplingIntent: () => ({
+          threshold:
+            expected === SamplingDecision.RECORD_AND_SAMPLED
+              ? 0n
+              : INVALID_THRESHOLD,
+          thresholdReliable: true,
+          updateTraceState: (state, decision) => {
+            calls++;
+            assert.ok(state);
+            assert.strictEqual(decision, expected);
+            return state.set('vendor', 'value');
+          },
+        }),
+        toString: () => 'TestSampler',
+      });
+      const result = sampler.shouldSample(
+        ROOT_CONTEXT,
+        traceId,
+        'name',
+        SpanKind.INTERNAL,
+        {},
+        []
+      );
+
+      assert.strictEqual(calls, 1);
+      assert.strictEqual(result.decision, expected);
+      assert.strictEqual(result.traceState?.get('vendor'), 'value');
+    });
+  }
+
+  it('should pass parent tracestate to the update callback', () => {
+    const parentState = new TraceState().set('vendor', 'parent');
+    const parentContext = trace.setSpanContext(ROOT_CONTEXT, {
+      traceId,
+      spanId,
+      traceFlags: TraceFlags.SAMPLED,
+      traceState: parentState,
+    });
+    const sampler = createCompositeSampler({
+      getSamplingIntent: () => ({
+        threshold: 0n,
+        thresholdReliable: true,
+        updateTraceState: (state, decision) => {
+          assert.strictEqual(state, parentState);
+          assert.strictEqual(decision, SamplingDecision.RECORD_AND_SAMPLED);
+          return state?.set('other', 'child');
+        },
+      }),
+      toString: () => 'TestSampler',
+    });
+    const result = sampler.shouldSample(
+      parentContext,
+      traceId,
+      'name',
+      SpanKind.INTERNAL,
+      {},
+      []
+    );
+
+    assert.strictEqual(result.traceState?.get('vendor'), 'parent');
+    assert.strictEqual(result.traceState?.get('other'), 'child');
+    assert.strictEqual(result.traceState?.get('ot'), 'th:0');
   });
 
   [

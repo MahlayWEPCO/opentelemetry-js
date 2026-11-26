@@ -81,12 +81,12 @@ class CompositeSampler implements Sampler {
 
     const otts = serializeTraceState(otTraceState);
 
-    let newTraceState: TraceState | undefined;
-    if (traceState) {
-      newTraceState = traceState;
-      if (intent.updateTraceState) {
-        newTraceState = intent.updateTraceState(newTraceState);
-      }
+    let newTraceState = traceState;
+    if (intent.updateTraceState) {
+      newTraceState = intent.updateTraceState(
+        traceState ?? new CoreTraceState(),
+        decision
+      );
     }
     if (otts) {
       if (!newTraceState) {

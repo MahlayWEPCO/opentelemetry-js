@@ -4,7 +4,7 @@
  */
 
 import type { Attributes, TraceState } from '@opentelemetry/api';
-import { type Sampler } from '@opentelemetry/sdk-trace';
+import type { Sampler, SamplingDecision } from '@opentelemetry/sdk-trace';
 
 /** Information to make a sampling decision. */
 export type SamplingIntent = {
@@ -17,8 +17,11 @@ export type SamplingIntent = {
   /** Any attributes to add to the span for the sampling result. */
   attributes?: Attributes;
 
-  /** How to update the TraceState for the span. */
-  updateTraceState?: (ts: TraceState | undefined) => TraceState | undefined;
+  /** How to update the TraceState for the span given its sampling decision. */
+  updateTraceState?: (
+    ts: TraceState | undefined,
+    decision: SamplingDecision
+  ) => TraceState | undefined;
 };
 
 /** A sampler that can be composed to make a final sampling decision. */
